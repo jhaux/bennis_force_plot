@@ -13,30 +13,58 @@
 }
 
 </style>
-<svg width="960" height="600"></svg>
+<svg id="plot"></svg>
+<svg id="legend"></svg>
 <script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="//d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
+<script src="https://d3js.org/d3-color.v1.min.js"></script>
+
 <script>
 
-var svg = d3.select("svg"),
-    width = +svg.attr("width"),
-    height = +svg.attr("height");
+width = 960;
+height = 600;
+
+var svg = d3.select("#plot")
+    .attr("width", width)
+    .attr("height", height);
+
+var container = svg.append("g")
+    .attr("id", "container");
+    
+// var background = container.append("rect")
+//     .attr("width", width + 30000)
+//     .attr("height", height + 30000)
+//     .attr("x", -15000)
+//     .attr("y", -15000)
+//     .attr("fill", "gray");
 
 var t_init = 50;
-var color = d3.scaleOrdinal(d3.schemeCategory20);
+var color = d3.scaleSequential(d3.interpolateWarm)
+        .domain([1, 0]);
 
 function radius(payoff) {
-    return payoff * 10;
+    return 5 + payoff * 5;
 }
+
+var zoom = d3.zoom()
+            .scaleExtent([0.1, 1])
+            .translateExtent([[-3000, -3000], [width + 3000, height + 3000]])
+            .on("zoom", zoomed);
+
+svg.call(zoom);
+
+
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(function(d) { return d.id; }))
+    .force("collide", d3.forceCollide().radius(function(d){ return radius(d.payoffs[t_init]) + 5 }))
     .force("charge", d3.forceManyBody())
     .force("center", d3.forceCenter(width / 2, height / 2));
 
 d3.json("graph_G.json", function(error, graph) {
   if (error) throw error;
 
-  var link = svg.append("g")
+  var link = container.append("g")
       .attr("class", "links")
     .selectAll("line")
     .data(graph.links)
@@ -44,14 +72,14 @@ d3.json("graph_G.json", function(error, graph) {
     .attr("stroke-width", function(d) { return d.value })
       .attr("id", function(d) { return String(d.source) + "-" + String(d.target) });
 
-  var node = svg.append("g")
+  var node = container.append("g")
       .attr("class", "nodes")
     .selectAll("circle")
     .data(graph.nodes)
     .enter().append("circle")
       .attr("id", function(d) { return "node"+String(d.id) })
       .attr("r", function(d) { return radius(d.payoffs[t_init]) })
-      .attr("fill", function(d) { return color(d.group); })
+      .attr("fill", function(d) { return color(d.costs[t_init]); })
       .call(d3.drag()
           .on("start", dragstarted)
           .on("drag", dragged)
@@ -79,7 +107,7 @@ d3.json("graph_G.json", function(error, graph) {
         .attr("cy", function(d) { return d.y; });
   }
 
-  svg.selectAll("circle")
+  container.selectAll("circle")
     .on("click", function(d) {
       d.selected = !d.selected;
       if (d.selected) {
@@ -96,34 +124,35 @@ d3.json("graph_G.json", function(error, graph) {
     neighbours = selection.data()[0].neighbours;
     first_level = neighbours.n0;
     second_level = neighbours.n1;
-    
-    console.log(selection.data()[0].selected);
 
-    d3.selectAll('circle').transition()
+    d3.selectAll('circle')
+            .transition()
             .duration(400)
-            .attr("opacity", 0.2);
+            .attr("fill", function(d){
+                    var c = d3.hsl(color(d.costs[t_init]));
+                    c.s = 0.5;
+                    c.l = 0.8;
+                    return c + "";
+                });
 
     selection.transition()
-        .delay(400)
         .duration(0)
-        .attr("opacity", 1);
+        .attr("fill", function(d){ return color(d.costs[t_init]) });
 
     if (first_level.length > 0) {
       for (var i=0; i < first_level.length; i++) {
         secondary_node = d3.select("#node"+String(first_level[i]))
         secondary_node.transition()
-          .delay(400)
-          .duration(400)
-          .attr("opacity", 0.9);
+          .duration(0)
+          .attr("fill", function(d){ return color(d.costs[t_init]) });
       }
     }
     if (second_level.length > 0) {
       for (var i=0; i < second_level.length; i++) {
         tertiary_node = d3.select("#node"+String(second_level[i]))
         tertiary_node.transition()
-          .delay(400)
-          .duration(400)
-          .attr("opacity", 0.8);
+          .duration(0)
+          .attr("fill", function(d){ return color(d.costs[t_init]) });
       }
     }
   }
@@ -139,25 +168,7 @@ d3.json("graph_G.json", function(error, graph) {
 
     d3.selectAll('circle').transition()
             .duration(400)
-            .attr("opacity", 1)
-
-    if (first_level.length > 0) {
-      for (var i=0; i < first_level.length; i++) {
-        secondary_node = d3.select("#node"+String(first_level[i]))
-        secondary_node.transition()
-          .duration(800)
-          .attr("opacity", 1);
-      }
-    }
-    if (second_level.length > 0) {
-      for (var i=0; i < second_level.length; i++) {
-        tertiary_node = d3.select("#node"+String(second_level[i]))
-        tertiary_node.transition()
-          .duration(800)
-          .attr("opacity", 1);
-      }
-    }
-    
+            .attr("fill", function(d){ return color(d.costs[t_init]); });
   }
 });
 
@@ -177,5 +188,55 @@ function dragended(d) {
   d.fx = null;
   d.fy = null;
 }
+
+function zoomed() {
+          container.attr("transform", d3.event.transform);
+}
+
+l_w = 600
+l_h = 150
+legend_svg = d3.select("#legend")
+    .attr("width", l_w)
+    .attr("height", l_h)
+    .attr("x", (width - l_w)/2)
+    .attr("y", height + 20);
+
+var defs = legend_svg.append("defs");
+
+var linearGradient = defs.append("linearGradient")
+    .attr("id", "linear-gradient");
+
+linearGradient
+    .attr("x1", "0%")
+    .attr("y1", "0%")
+    .attr("x2", "100%")
+    .attr("y2", "0%");
+
+var N = 50; 
+values = Array.apply(null, {length: N}).map(Number.call, Number)
+for (var i=0; i<values.length; i++) {
+        values[i] /= N;
+        }
+
+console.log(values)
+
+linearGradient.selectAll("stop")
+        .data(values)
+        .enter().append("stop")
+        .attr("offset", function(d,i) { return String(d * 100) + "%"; })
+        .attr("stop-color", function(d) { return color(d); });
+
+var cbar = legend_svg.append("g")
+    .attr("id", "colorbar")
+    .attr("transform", "translate(" + (l_w/4) +",0)");
+
+cbar.append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", l_w / 2)
+    .attr("height", 20)
+    .style("fill", "url(#linear-gradient)")
+    .attr("stroke-width", 1)
+    .attr("stroke", "black");
 
 </script>
