@@ -159,6 +159,8 @@ a:hover {
 <a class="next round" onclick="IncreaseTime()">&#8250;</a>
 <a class="next play" onclick="PlayToEnd()">&#8250;</a>
 </p>
+
+<a class="save" onclick="svgToPng()">Save png</a>
 </div>
 
 <p class="description"> Der Plot ist interaktiv!
@@ -177,6 +179,7 @@ a:hover {
 <script src="//d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
 <script src="https://d3js.org/d3-color.v1.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-tip/0.7.1/d3-tip.min.js"></script>
+<script src="https://rawgit.com/exupero/saveSvgAsPng/gh-pages/saveSvgAsPng.js"></script>
 
 <script>
 
@@ -605,5 +608,14 @@ function zoomed() {
                 rad = radius(circle_values[i]);
                 return 100 + scale*rad;
         })
+}
+// https://github.com/exupero/saveSvgAsPng
+function svgToPng() {
+    saveSvgAsPng(svg.node(), 'chart.png');
+}
+function svgToSvg() {
+    svgAsDataUri(svg.node(), {}, function(uri) {
+    console.log('uri', uri);
+});
 }
 </script>
