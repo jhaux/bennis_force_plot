@@ -1,9 +1,79 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
+@font-face {
+  font-family: 'Standart_font'; /*a name to be used later*/
+  src: url('Magra-Regular.ttf'); /*URL to font*/
+}
+
+body {
+  font-family: Standart_font;
+}
+
+#scale-to-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.text-bg {
+  fill: beige;
+  fill-opacity: 0.8;
+}
+
+.center {
+  width: 100%;
+  text-align: center;
+}
+
+.description {
+  text-align: left;
+  position: relative;
+  top: 20;
+  left: 20px
+}
+
+.legend-ticks {
+  alignment-baseline: middle;
+  text-anchor: end;
+}
+
+#plot-container {
+  position: relative;
+  width: 100%;
+  height: 90%;
+  vertical-align: top;
+  overflow: hidden;
+}
+
+#plot  {
+  width: 100%;
+  height: 100%
+  position: relative;
+}
+
+#control-panel {
+  position: relative;
+}
+
+#control {
+  display: inline;
+  float: none;
+}
+
+.legend-circle {
+  fill: none;
+}
+
+.legend-line {
+  stroke: black;
+  stroke-width: 1.5;
+}
 
 .links line {
-  stroke: #999;
+  stroke: black;
   stroke-opacity: 0.6;
 }
 
@@ -12,12 +82,101 @@
   stroke-width: 1.5px;
 }
 
+.d3-tip {
+  line-height: 1;
+  font-weight: bold;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 2px;
+  font: 14px sans-serif;
+}
+
+/* Creates a small triangle extender for the tooltip */
+.d3-tip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.8);
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+}
+
+/* Style northward tooltips specifically */
+.d3-tip.n:after {
+  margin: -2px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+
+a {
+  text-decoration: none;
+  display: inline-block;
+  padding: 8px 16px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+a:hover {
+  background-color: #ddd;
+  color: black;
+}
+
+.previous {
+  background-color: #f1f1f1;
+  color: black;
+}
+
+.next {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.round {
+  border-radius: 50%;
+}
+
 </style>
+<div id="scale-to-page">
+
+<div id="plot-container">
+<h2 class="center">Bennis geiler graph</h2>
 <svg id="plot"></svg>
-<svg id="legend"></svg>
+</div>
+
+<div id="contol-panel" class="center">
+<p id="controler">
+<a class="previous play" onclick="PlayToStart()">&#8249;</a>
+<a class="previous round" onclick="DecreaseTime()">&#8249;</a>
+<span id="time-text"> 50 </span>
+<a class="next round" onclick="IncreaseTime()">&#8250;</a>
+<a class="next play" onclick="PlayToEnd()">&#8250;</a>
+</p>
+</div>
+
+<p class="description"> Der Plot ist interaktiv!
+<ul type=disk>Click a circle to view its neighbours. </ul>
+<ul type=disk>Zoom and drag the background to get a better overview.</ul>
+<ul type=disk>With the buttons you can scroll through time:
+    <ul>The inner buttons lett you scroll through time step by step,</ul>
+    <ul>the outer buttons play to start or end.</ul>
+</ul>
+<ul>Hover over a circle to get mor information.</ul>
+<p>
+
+</div>
+
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="//d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
 <script src="https://d3js.org/d3-color.v1.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3-tip/0.7.1/d3-tip.min.js"></script>
 
 <script>
 
@@ -26,20 +185,27 @@ height = 600;
 
 var svg = d3.select("#plot")
     .attr("width", width)
-    .attr("height", height);
+    .attr("height", height)
+    .attr("preserveAspectRatio", "xMinYMin meet")
+    .attr("viewBox", "0 0 " + width + " " + height);
 
 var container = svg.append("g")
     .attr("id", "container");
-    
-// var background = container.append("rect")
-//     .attr("width", width + 30000)
-//     .attr("height", height + 30000)
-//     .attr("x", -15000)
-//     .attr("y", -15000)
-//     .attr("fill", "gray");
 
-var t_init = 50;
-var color = d3.scaleSequential(d3.interpolateWarm)
+var legend = svg.append("g")
+    .attr("id", "legend");
+
+    
+var background = container.append("rect")
+    .attr("width", width + 30000)
+    .attr("height", height + 30000)
+    .attr("x", -15000)
+    .attr("y", -15000)
+    .attr("fill", "beige");
+
+var time_step = 50,
+    max_time = 50;
+var color = d3.scaleSequential(d3.interpolateViridis)
         .domain([1, 0]);
 
 function radius(payoff) {
@@ -47,7 +213,7 @@ function radius(payoff) {
 }
 
 var zoom = d3.zoom()
-            .scaleExtent([0.1, 1])
+            .scaleExtent([0.1, 3])
             .translateExtent([[-3000, -3000], [width + 3000, height + 3000]])
             .on("zoom", zoomed);
 
@@ -57,9 +223,27 @@ svg.call(zoom);
 
 var simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(function(d) { return d.id; }))
-    .force("collide", d3.forceCollide().radius(function(d){ return radius(d.payoffs[t_init]) + 5 }))
+    .force("collide", d3.forceCollide().radius(function(d){ return radius(d.payoffs[time_step]) + 5 }))
     .force("charge", d3.forceManyBody())
     .force("center", d3.forceCenter(width / 2, height / 2));
+
+var tip = d3.tip()
+    .attr('class', 'd3-tip')
+    .offset([-6, 0])
+    .html(function(d) {
+        n0 = d.neighbours["n0"].length
+        n1 = d.neighbours["n1"].length
+        nn = n0 + n1
+        c = d.costs[time_step]
+        p = d.payoffs[time_step]
+        return "<p><strong>ID:</strong> <span>" + d.id + "</span></p>\
+                <p><strong>Neighbours:</strong> <span>" + nn + " (" + n0 + ", " + n1 + ")</span></p>\
+                <p><strong>Cost[" + time_step + "]:</strong> <span>" + c + "</span></p>\
+                <p><strong>Payoff:[" + time_step + "]</strong> <span>" + p + "</span></p>\
+                ";
+    });
+svg.call(tip);
+
 
 d3.json("graph_G.json", function(error, graph) {
   if (error) throw error;
@@ -70,7 +254,8 @@ d3.json("graph_G.json", function(error, graph) {
     .data(graph.links)
     .enter().append("line")
     .attr("stroke-width", function(d) { return d.value })
-      .attr("id", function(d) { return String(d.source) + "-" + String(d.target) });
+    .attr("id", function(d) { return String(d.source) + "-" + String(d.target) })
+    .attr("class", function(d) { return "nn"+String(d.source) + " nn" + String(d.target); });
 
   var node = container.append("g")
       .attr("class", "nodes")
@@ -78,15 +263,14 @@ d3.json("graph_G.json", function(error, graph) {
     .data(graph.nodes)
     .enter().append("circle")
       .attr("id", function(d) { return "node"+String(d.id) })
-      .attr("r", function(d) { return radius(d.payoffs[t_init]) })
-      .attr("fill", function(d) { return color(d.costs[t_init]); })
+      .attr("r", function(d) { return radius(d.payoffs[time_step]) })
+      .attr("fill", function(d) { return color(d.costs[time_step]); })
+      .on('mouseover', tip.show)
+      .on('mouseout', tip.hide)
       .call(d3.drag()
           .on("start", dragstarted)
           .on("drag", dragged)
           .on("end", dragended));
-
-  node.append("title")
-      .text(function(d) { return d.id; });
 
   simulation
       .nodes(graph.nodes)
@@ -125,26 +309,43 @@ d3.json("graph_G.json", function(error, graph) {
     first_level = neighbours.n0;
     second_level = neighbours.n1;
 
-    d3.selectAll('circle')
+    container.selectAll('circle')
             .transition()
             .duration(400)
-            .attr("fill", function(d){
-                    var c = d3.hsl(color(d.costs[t_init]));
-                    c.s = 0.5;
-                    c.l = 0.8;
-                    return c + "";
-                });
+            .attr("opacity", 0.2);
+    container.selectAll('line').transition()
+            .duration(400)
+            .attr("opacity", 0.2)
+            .attr("stroke-width", 1)
+            .style("stroke", "black");
 
     selection.transition()
         .duration(0)
-        .attr("fill", function(d){ return color(d.costs[t_init]) });
+        .attr("opacity", 1)
+        .attr("fill", function(d){ return color(d.costs[time_step]) });
+        
+     nn_links = container.selectAll("line.nn" + String(node_id));
+     nn_links.transition()
+       .duration(0)
+       .attr("opacity", 1)
+       .attr("stroke-width", 6)
+       .style("stroke", "red");
+    
 
     if (first_level.length > 0) {
       for (var i=0; i < first_level.length; i++) {
         secondary_node = d3.select("#node"+String(first_level[i]))
         secondary_node.transition()
           .duration(0)
-          .attr("fill", function(d){ return color(d.costs[t_init]) });
+          .attr("opacity", 1)
+          .attr("fill", function(d){ return color(d.costs[time_step]) });
+
+        other_links = container.selectAll("line.nn"+String(first_level[i])+":not(.nn"+node_id+")")
+                        .transition()
+                        .duration(0)
+                        .attr("opacity", 1)
+                        .attr("stroke-width", 4)
+                        .style("stroke", "orange");
       }
     }
     if (second_level.length > 0) {
@@ -152,7 +353,8 @@ d3.json("graph_G.json", function(error, graph) {
         tertiary_node = d3.select("#node"+String(second_level[i]))
         tertiary_node.transition()
           .duration(0)
-          .attr("fill", function(d){ return color(d.costs[t_init]) });
+          .attr("opacity", 1)
+          .attr("fill", function(d){ return color(d.costs[time_step]) });
       }
     }
   }
@@ -164,11 +366,17 @@ d3.json("graph_G.json", function(error, graph) {
      second_level = neighbours.n1;
      
       // transition back to normal
-    console.log(selection.data()[0].selected);
 
-    d3.selectAll('circle').transition()
+    container.selectAll('circle').transition()
             .duration(400)
-            .attr("fill", function(d){ return color(d.costs[t_init]); });
+            .attr("opacity", 1)
+            .attr("fill", function(d){ return color(d.costs[time_step]); });
+
+    container.selectAll('line').transition()
+            .duration(400)
+            .attr("opacity", 0.6)
+            .attr("stroke-width", 1)
+            .style("stroke", "black");
   }
 });
 
@@ -189,17 +397,59 @@ function dragended(d) {
   d.fy = null;
 }
 
-function zoomed() {
-          container.attr("transform", d3.event.transform);
+function getElementCoords(element, coords) {
+    var ctm = element.getCTM(),
+    x = ctm.e + coords.x*ctm.a + coords.y*ctm.c,
+    y = ctm.f + coords.x*ctm.b + coords.y*ctm.d;
+    return {x: x, y: y};
+};
+
+function redraw() {
+    d3.select("#time-text").text(" " +time_step + " | " + max_time + " ")
+    container.selectAll("circle").transition()
+            .duration(100)
+            .attr("fill", function(d) { return color(d.costs[time_step]); })
+            .attr("r", function(d) { return radius(d.payoffs[time_step]); });
 }
 
-l_w = 600
-l_h = 150
-legend_svg = d3.select("#legend")
-    .attr("width", l_w)
-    .attr("height", l_h)
-    .attr("x", (width - l_w)/2)
-    .attr("y", height + 20);
+redraw()
+
+function IncreaseTime() {
+    time_step += 1;
+    if (time_step > max_time) { time_step = max_time; }
+    redraw()
+}
+
+function DecreaseTime() {
+    time_step -= 1;
+    if (time_step < 0) { time_step = 0; }
+    redraw()
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+async function PlayToStart() {
+    while (time_step > 0) {
+        DecreaseTime();
+        await sleep(200);
+    }
+}
+
+async function PlayToEnd() {
+    while (time_step < max_time) {
+        IncreaseTime();
+        await sleep(200);
+    }
+}
+
+
+l_w = 175
+l_h = 400
+
+legend_svg = legend;
 
 var defs = legend_svg.append("defs");
 
@@ -209,8 +459,8 @@ var linearGradient = defs.append("linearGradient")
 linearGradient
     .attr("x1", "0%")
     .attr("y1", "0%")
-    .attr("x2", "100%")
-    .attr("y2", "0%");
+    .attr("x2", "0%")
+    .attr("y2", "100%");
 
 var N = 50; 
 values = Array.apply(null, {length: N}).map(Number.call, Number)
@@ -218,25 +468,142 @@ for (var i=0; i<values.length; i++) {
         values[i] /= N;
         }
 
-console.log(values)
-
 linearGradient.selectAll("stop")
         .data(values)
         .enter().append("stop")
         .attr("offset", function(d,i) { return String(d * 100) + "%"; })
         .attr("stop-color", function(d) { return color(d); });
 
+leg_xoff = 70
 var cbar = legend_svg.append("g")
     .attr("id", "colorbar")
-    .attr("transform", "translate(" + (l_w/4) +",0)");
+    .attr("transform", "translate("+leg_xoff+",30)");
 
+cbar_start = 0;
+cbar_stop = 200;
+cbar_width = 20;
 cbar.append("rect")
+    .attr("y", cbar_start)
     .attr("x", 0)
-    .attr("y", 0)
-    .attr("width", l_w / 2)
-    .attr("height", 20)
+    .attr("height", cbar_stop)
+    .attr("width", cbar_width)
     .style("fill", "url(#linear-gradient)")
     .attr("stroke-width", 1)
     .attr("stroke", "black");
 
+ticks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+cbar.selectAll("text")
+    .data(ticks)
+    .enter().append("text")
+    .attr("class", "legend-ticks")
+    .attr("y", function(d, i) { return cbar_start + (i / (ticks.length-1)) * (cbar_stop - cbar_start); })
+    .attr("x", -15)
+    .text(function (d,i) {return d;});
+cbar.selectAll("line")
+    .data(ticks)
+    .enter().append("line")
+    .attr("class", "legend-ticklines")
+    .attr("y1", function(d, i) { return cbar_start + (i / (ticks.length-1)) * (cbar_stop - cbar_start); })
+    .attr("y2", function(d, i) { return cbar_start + (i / (ticks.length-1)) * (cbar_stop - cbar_start); })
+    .attr("x1", 0)
+    .attr("x2", -10)
+    .attr("stroke", "black")
+    .attr("stroke-width", 1);
+
+text_x = -50
+
+cbar.append("rect")
+    .attr("class", "text-bg")
+    .attr("transform", "translate("+ (text_x - 20) +", " + (cbar_stop/2 + 30)+ ") rotate(270)")
+    .attr("width", 65)
+    .attr("height", 30)
+cbar.append("text")
+    .attr("transform", "translate("+ text_x +", "+cbar_stop/2+") rotate(270)")
+    .style("text-anchor", "middle")
+    .style("alignment-baseline", "center")
+    .text("Cost");
+
+circs_top = cbar_stop + 50
+var circs = legend_svg.append("g")
+    .attr("id", "circles_legend")
+    .attr("transform", "translate("+leg_xoff+","+circs_top+")");
+
+circle_values = [0, 2, 4, 6];
+
+groups = circs.selectAll(".half_circles")
+    .data(circle_values)
+    .enter().append("g")
+    .attr("class", "half_circle");
+
+groups.append("svg:clipPath")
+    .attr("id", function(d,i) { return "circ_clip_" + i; })
+    .append("rect")
+    .attr("x", -500)
+    .attr("y", 0)
+    .attr("width", 500+cbar_width)
+    .attr("height", 400)
+groups.append("circle")
+    .attr("class", "legend-circle legend-line")
+    .attr("clip-path", function(d,i) { return "url(#circ_clip_"+i+")"; })
+    .attr("cx", cbar_width)
+    .attr("cy", 100)
+    .attr("r", function(d, i) { return radius(d); });
+
+circs.selectAll("text")
+    .data(circle_values)
+    .enter().append("text")
+    .attr("class", "circle-ticklabel legend_ticks")
+    .attr("y", function(d, i) { return 100 + radius(d)})
+    .attr("x", function(d,i) { return cbar_width + 12 + i*10; })
+    .attr("text-anchor", "start")
+    .attr("alignment-baseline", "middle")
+    .text(function (d,i) {return d;});
+
+circs.selectAll("line")
+    .data(circle_values)
+    .enter().append("line")
+    .attr("class", "circle-tick legend-line")
+    .attr("y1", function(d, i) { return 100 + radius(d)})
+    .attr("y2", function(d, i) { return 100 + radius(d)})
+    .attr("x2", function(d, i) { return cbar_width + 10 + i*10; })
+    .attr("x1", cbar_width)
+    .attr("stroke", "black")
+    .attr("stroke-width", 2)
+
+circs.append("rect")
+    .attr("class", "text-bg")
+    .attr("transform", "translate("+ (text_x - 20) +", 130) rotate(270)")
+    .attr("width", 65)
+    .attr("height", 30);
+
+circs.append("text")
+    .attr("transform", "translate("+ text_x +", 100) rotate(270)")
+    .style("text-anchor", "middle")
+    .style("alignment-baseline", "center")
+    .text("Payoff");
+
+function zoomed() {
+    container.attr("transform", d3.event.transform);
+    scale = d3.event.transform.k;
+    translate = [d3.event.transform.x, d3.event.transform.y];
+    legend.selectAll("circle")
+        .attr("r", function(d,i) {
+            rad = radius(circle_values[i]);
+            return scale*rad;
+        });
+    legend.selectAll("line.circle-tick")
+        .attr("y1", function(d, i) { 
+                rad = radius(circle_values[i]);
+                return 100 + scale*rad;
+        })
+        .attr("y2", function(d, i) { 
+                rad = radius(circle_values[i]);
+                return 100 + scale*rad;
+        });
+    legend.selectAll("text.circle-ticklabel")
+        .attr("y", function(d, i) { 
+                rad = radius(circle_values[i]);
+                return 100 + scale*rad;
+        })
+}
 </script>
