@@ -184,7 +184,7 @@ a:hover {
 <script>
 
 width = 960;
-height = 600;
+height = 800;
 
 var svg = d3.select("#plot")
     .attr("width", width)
@@ -410,7 +410,7 @@ function getElementCoords(element, coords) {
 function redraw() {
     d3.select("#time-text").text(" " +time_step + " | " + max_time + " ")
     container.selectAll("circle").transition()
-            .duration(100)
+            .duration(400)
             .attr("fill", function(d) { return color(d.costs[time_step]); })
             .attr("r", function(d) { return radius(d.payoffs[time_step]); });
 }
@@ -437,14 +437,14 @@ function sleep(ms) {
 async function PlayToStart() {
     while (time_step > 0) {
         DecreaseTime();
-        await sleep(200);
+        await sleep(400);
     }
 }
 
 async function PlayToEnd() {
     while (time_step < max_time) {
         IncreaseTime();
-        await sleep(200);
+        await sleep(400);
     }
 }
 
